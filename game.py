@@ -24,19 +24,15 @@ BLUE2 = (0, 100, 255)
 BLACK = (0,0,0)
 
 BLOCK_SIZE = 20
-SPEED = 60
-
 class SnakeGameAI:
 
-    def __init__(self, w=800, h=600):
+    def __init__(self, w=800, h=800):
         self.w = w
         self.h = h
         # init display
         self.display = pygame.display.set_mode((self.w, self.h))
         pygame.display.set_caption('Snake')
         self.clock = pygame.time.Clock()
-        self.speed = SPEED
-        self.no_of_games = 0
         self.reset()
 
 
@@ -53,11 +49,8 @@ class SnakeGameAI:
         self.food = None
         self._place_food()
         self.frame_iteration = 0
-        self.loop_point = None
-        self.no_of_games += 1
-        self.time_since_last_food = 0 #ticks
-        self.reward_demerit = 0
-
+        self.speed = 60
+        self.prev_dist = None
 
     def _place_food(self):
         x = random.randint(0, (self.w-BLOCK_SIZE )//BLOCK_SIZE )*BLOCK_SIZE
@@ -69,43 +62,40 @@ class SnakeGameAI:
 
     def play_step(self, action):
         self.frame_iteration += 1
-        self.time_since_last_food += 1
         # 1. collect user input
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 quit()
-        if self.frame_iteration % 180 == 0:
-            self.loop_point = self.snake[-1]
         
+        self.prev_dist = np.sqrt((self.head.x - self.food.x) + (self.head.y - self.food.y))
         # 2. move
         self._move(action) # update the head
         self.snake.insert(0, self.head)
         
-        
         # 3. check if game over
         reward = 0
+        if self.prev_dist > np.sqrt((self.head.x - self.food.x) + (self.head.y - self.food.y)):
+            reward = 4
+        else:
+            reward = -2
+
         game_over = False
-        if self.is_collision_self() or self.is_collision_wall() or (self.frame_iteration > 300*len(self.snake) and self.no_of_games < 150):
+        if self.is_collision() or self.frame_iteration > 180*len(self.snake):
             game_over = True
-            reward = -10 - self.reward_demerit
-            if self.is_collision_self():
-                reward = (20 + self.reward_demerit * 2) * -1
-            self.reward_demerit = 0
+            reward = -20
             return reward, game_over, self.score
 
         # 4. place new food or just move
         if self.head == self.food:
             self.score += 1
-            reward = 10 + self.reward_demerit
-            self.reward_demerit = 0
+            reward = 40
             self._place_food()
         else:
             self.snake.pop()
         
         # 5. update ui and clock
         self._update_ui()
-
         keys = pygame.key.get_pressed()
         if keys[pygame.K_SPACE]:
             self.speed = 60
@@ -113,33 +103,22 @@ class SnakeGameAI:
             self.speed = 1000
 
         self.clock.tick(self.speed)
-
-        if self.loop_point is not None:
-            if self.loop_point == self.head:
-                self.reward_demerit += 2 if self.reward_demerit < 10 else 0
-
-
-
         # 6. return game over and score
         return reward, game_over, self.score
 
 
-    def is_collision_wall(self, pt=None):
+    def is_collision(self, pt=None):
         if pt is None:
             pt = self.head
         # hits boundary
         if pt.x > self.w - BLOCK_SIZE or pt.x < 0 or pt.y > self.h - BLOCK_SIZE or pt.y < 0:
             return True
-        return False
-    
-    def is_collision_self(self, pt=None):
-        if pt is None:
-            pt = self.head
         # hits itself
         if pt in self.snake[1:]:
             return True
+
         return False
-    
+
 
     def _update_ui(self):
         self.display.fill(BLACK)

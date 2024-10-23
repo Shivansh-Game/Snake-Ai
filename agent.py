@@ -6,8 +6,8 @@ from game import SnakeGameAI, Direction, Point
 from model import Linear_QNet, QTrainer
 from helper import plot
 
-MAX_MEMORY = 100_000 * 4
-BATCH_SIZE = 1_000
+MAX_MEMORY = 100_000
+BATCH_SIZE = 1000
 LR = 0.001
 
 class Agent:
@@ -15,75 +15,43 @@ class Agent:
     def __init__(self):
         self.n_games = 0
         self.epsilon = 0 # randomness
-        self.gamma = 0.8 # discount rate
+        self.gamma = 0.9 # discount rate
         self.memory = deque(maxlen=MAX_MEMORY) # popleft()
-        self.model = Linear_QNet(11, 128, 3)
-        self.lr = LR if self.n_games > 100 else LR * 10
-        self.score = 0
-        self.record = 0
+        self.model = Linear_QNet(11, 256, 3)
         self.trainer = QTrainer(self.model, lr=LR, gamma=self.gamma)
 
 
     def get_state(self, game):
         head = game.snake[0]
-        point_l = Point(head.x - 20 * 1, head.y)
-        point_r = Point(head.x + 20 * 1, head.y)
-        point_u = Point(head.x, head.y - 20 * 1)
-        point_d = Point(head.x, head.y + 20 * 1)
-
-        point_l_self = Point(head.x - 40, head.y)
-        point_r_self = Point(head.x + 40, head.y)
-        point_u_self = Point(head.x, head.y - 40)
-        point_d_self = Point(head.x, head.y + 40)
+        point_l = Point(head.x - 20, head.y)
+        point_r = Point(head.x + 20, head.y)
+        point_u = Point(head.x, head.y - 20)
+        point_d = Point(head.x, head.y + 20)
         
         dir_l = game.direction == Direction.LEFT
         dir_r = game.direction == Direction.RIGHT
         dir_u = game.direction == Direction.UP
         dir_d = game.direction == Direction.DOWN
 
-        d_straight =(((dir_r and game.is_collision_wall(point_r) and not game.food.x > game.head.x) or (dir_r and (game.is_collision_self(point_r_self) or game.is_collision_self(point_r)))) or #game.is_boxed(point_r) or 
-                    ((dir_l and game.is_collision_wall(point_l) and not game.food.x < game.head.x) or (dir_l and (game.is_collision_self(point_l_self) or game.is_collision_self(point_l)))) or #game.is_boxed(point_l) or 
-                    ((dir_u and game.is_collision_wall(point_u) and not game.food.y < game.head.y) or (dir_u and (game.is_collision_self(point_u_self) or game.is_collision_self(point_u)))) or #game.is_boxed(point_u) or 
-                    ((dir_d and game.is_collision_wall(point_d) and not game.food.y > game.head.y) or (dir_d and (game.is_collision_self(point_d_self) or game.is_collision_self(point_d))))) #or  game.is_boxed(point_d)
-        
-        lil_d_straight = (dir_r and game.is_collision_self(point_r_self)) or (dir_l and game.is_collision_self(point_l_self)) or (dir_u and game.is_collision_self(point_u_self)) or (dir_d and game.is_collision_self(point_d_self))
-
-
-        d_right =   (((dir_u and game.is_collision_wall(point_r) and not game.food.x > game.head.x) or (dir_u and (game.is_collision_self(point_r_self) or game.is_collision_self(point_r)))) or #game.is_boxed(point_r) or 
-                    ((dir_d and game.is_collision_wall(point_l) and not game.food.x < game.head.x) or (dir_d and (game.is_collision_self(point_l_self) or game.is_collision_self(point_l)))) or# game.is_boxed(point_l) or 
-                    ((dir_l and game.is_collision_wall(point_u) and not game.food.y < game.head.y) or (dir_l and (game.is_collision_self(point_u_self) or game.is_collision_self(point_u)))) or #game.is_boxed(point_u) or 
-                    ((dir_r and game.is_collision_wall(point_d) and not game.food.y > game.head.y) or (dir_r and (game.is_collision_self(point_d_self) or game.is_collision_self(point_d))))) #or game.is_boxed(point_d)
-
-
-        lil_d_right = (dir_u and game.is_collision_self(point_r_self)) or (dir_d and game.is_collision_self(point_l_self)) or (dir_l and game.is_collision_self(point_u_self)) or (dir_r and game.is_collision_self(point_d_self))
-
-        d_left =    (((dir_d and game.is_collision_wall(point_r) and not game.food.x > game.head.x) or (dir_d and (game.is_collision_self(point_r_self) or game.is_collision_self(point_r)))) or #game.is_boxed(point_r) or 
-                    ((dir_u and game.is_collision_wall(point_l) and not game.food.x < game.head.x) or (dir_u and (game.is_collision_self(point_l_self) or game.is_collision_self(point_l)))) or #game.is_boxed(point_l) or 
-                    ((dir_r and game.is_collision_wall(point_u) and not game.food.y < game.head.y) or (dir_r and (game.is_collision_self(point_u_self) or game.is_collision_self(point_u)))) or #game.is_boxed(point_u) or 
-                    ((dir_l and game.is_collision_wall(point_d) and not game.food.y > game.head.y) or (dir_l and (game.is_collision_self(point_d_self) or game.is_collision_self(point_d))))) #or game.is_boxed(point_d)
-
-        lil_d_left = (dir_d and game.is_collision_self(point_r_self)) or (dir_u and game.is_collision_self(point_l_self)) or (dir_r and game.is_collision_self(point_u_self)) or (dir_l and game.is_collision_self(point_d_self))
-
-
         state = [
             # Danger straight
-            d_straight,
-
-            #lil_d_straight,
-
+            (dir_r and game.is_collision(point_r)) or 
+            (dir_l and game.is_collision(point_l)) or 
+            (dir_u and game.is_collision(point_u)) or 
+            (dir_d and game.is_collision(point_d)),
 
             # Danger right
-            d_right,
-
-            #lil_d_right,
-
+            (dir_u and game.is_collision(point_r)) or 
+            (dir_d and game.is_collision(point_l)) or 
+            (dir_l and game.is_collision(point_u)) or 
+            (dir_r and game.is_collision(point_d)),
 
             # Danger left
-            d_left,
-
-            #lil_d_left,
-
-
+            (dir_d and game.is_collision(point_r)) or 
+            (dir_u and game.is_collision(point_l)) or 
+            (dir_r and game.is_collision(point_u)) or 
+            (dir_l and game.is_collision(point_d)),
+            
             # Move direction
             dir_l,
             dir_r,
@@ -94,7 +62,7 @@ class Agent:
             game.food.x < game.head.x,  # food left
             game.food.x > game.head.x,  # food right
             game.food.y < game.head.y,  # food up
-            game.food.y > game.head.y,  # food down
+            game.food.y > game.head.y  # food down
             ]
 
         return np.array(state, dtype=int)
@@ -110,8 +78,6 @@ class Agent:
 
         states, actions, rewards, next_states, dones = zip(*mini_sample)
         self.trainer.train_step(states, actions, rewards, next_states, dones)
-        #for state, action, reward, nexrt_state, done in mini_sample:
-        #    self.trainer.train_step(state, action, reward, next_state, done)
 
     def train_short_memory(self, state, action, reward, next_state, done):
         self.trainer.train_step(state, action, reward, next_state, done)
@@ -165,7 +131,6 @@ def train():
             if score > record:
                 record = score
                 agent.model.save()
-                
 
             print('Game', agent.n_games, 'Score', score, 'Record:', record)
 
